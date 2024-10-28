@@ -1,0 +1,265 @@
+----
+title: "NYC Airbnb Data Analysis"
+----
+```{r}
+library(ggplot2)
+library(dplyr)
+library(car)
+
+```
+
+```{r}
+# Read the CSV file
+data <- read.csv("/Users/chandanapacha/Downloads/Linear regression/ab.csv")
+
+# Display the structure of the dataset
+str(data)
+```
+
+```{r}
+# Display summary statistics for the dataset
+summary(data)
+```
+
+```{r}
+# Display the first 10 observations
+head(data, 10)
+```
+DATA CLEANING
+```{r}
+# Count the number of NA values in each column
+na_count <- colSums(is.na(data))
+na_count
+
+```
+
+1) Calculates the z-scores for the price and minimum_nights columns. Z-scores represent how many standard deviations an element is from the mean, helping identify outliers.
+2) The scale() function normalizes the data, and the absolute value of the result (abs()) is taken to handle both high and low outliers (i.e., values significantly above or below the mean).
+```{r}
+
+# Remove outliers using z-scores for 'price' and 'minimum_nights'
+data$z_price <- abs(scale(data$price))
+data$z_min_nights <- abs(scale(data$minimum_nights))
+```
+Filters the dataset to remove entries where the z-scores are greater than 3, which are considered outliers, and ensures that prices are greater than 3 to avoid unrealistic values.
+```{r}
+# Filter out rows where z-scores are greater than 3 and price is greater than 3
+ab_nyc_final <- data %>%
+  filter(z_price < 3, z_min_nights < 3, price > 3)
+```
+Creates a new categorical variable based on the minimum_nights field, grouping listings into predefined categories based on the number of nights.
+```{r}
+# Convert numeric variables into categorical variables for 'minimum_nights'
+ab_nyc_final$minimum_nights_group <- "Others"
+ab_nyc_final$minimum_nights_group[ab_nyc_final$minimum_nights == 1] <- "one night"
+ab_nyc_final$minimum_nights_group[ab_nyc_final$minimum_nights == 2] <- "two nights"
+ab_nyc_final$minimum_nights_group[ab_nyc_final$minimum_nights == 3] <- "three nights"
+ab_nyc_final$minimum_nights_group[ab_nyc_final$minimum_nights == 4] <- "four nights"
+ab_nyc_final$minimum_nights_group[ab_nyc_final$minimum_nights > 4] <- "five nights or more"
+
+
+```
+Similar to minimum_nights, this step categorizes the number of listings a host has into distinct groups, facilitating analysis by listing volume.
+```{r}
+# Convert numeric variables into categorical variables for 'calculated_host_listings_count'
+ab_nyc_final$calculated_host_listings_count_group <- "Others"
+ab_nyc_final$calculated_host_listings_count_group[ab_nyc_final$calculated_host_listings_count == 1] <- "one listing"
+ab_nyc_final$calculated_host_listings_count_group[ab_nyc_final$calculated_host_listings_count == 2] <- "two listings"
+ab_nyc_final$calculated_host_listings_count_group[ab_nyc_final$calculated_host_listings_count > 2] <- "more than two listings"
+
+```
+
+```{r}
+summary(ab_nyc_final)
+```
+
+```{r}
+# Remove unused columns
+ab_nyc_final <- ab_nyc_final %>%
+  select(-c(z_price, z_min_nights, minimum_nights, last_review, neighbourhood,
+            calculated_host_listings_count, reviews_per_month))
+
+# Display the first few rows of the updated data frame
+head(ab_nyc_final)
+```
+```{r}
+#Price Distribution by Neighbourhood Group
+#Visualize the distribution of prices across different neighbourhood groups to see how prices vary geographically.
+ggplot(ab_nyc_final, aes(x = price, fill = neighbourhood_group)) +
+  geom_histogram(bins = 30, alpha = 0.6) +
+  scale_x_continuous(limits = c(0, 1000)) + # Limiting for better visualization
+  labs(title = "Distribution of Prices by Neighbourhood Group",
+       x = "Price ($)",
+       y = "Count of Listings") +
+  theme_minimal()
+
+
+```
+The histogram visualizes Airbnb prices across different New York City neighborhoods. It reveals that the majority of listings are priced below $250, with a significant number concentrated under $100, showing an overall right-skewed distribution. Manhattan and Brooklyn have the highest number of listings across the price spectrum, while the Bronx and Staten Island have noticeably fewer listings, suggesting lower Airbnb activity in these areas. The visualization is cut off at $1000, indicating that listings above this price are relatively rare.
+```{r}
+#Price vs. Number of Reviews
+#Scatter plot exploring the relationship between the number of reviews and listing prices
+ggplot(ab_nyc_final, aes(x = number_of_reviews, y = price)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  labs(title = "Price vs. Number of Reviews",
+       x = "Number of Reviews",
+       y = "Price ($)") +
+  scale_y_continuous(limits = c(0, 1000)) + # Limiting price for better visualization
+  theme_minimal()
+
+```
+This scatter plot depicts the relationship between the number of reviews and Airbnb listing prices. It shows a concentration of listings with lower review counts at lower price points, while sparse data points are observed as review counts increase. The absence of a clear trend suggests a weak linear relationship between review count and price. Additionally, listings with exceptionally high review counts do not exhibit consistent price patterns.
+```{r}
+#Availability of Listings Throughout the Year
+#Histogram analyzing the availability of listings across the year
+ggplot(ab_nyc_final, aes(x = availability_365)) +
+  geom_histogram(bins = 50, fill = "green", alpha = 0.5) +
+  labs(title = "Availability of Listings Throughout the Year",
+       x = "Days Available per Year",
+       y = "Frequency") +
+  theme_minimal()
+
+```
+
+The histogram showcases the availability of Airbnb listings throughout the year, with the x-axis displaying the number of days a listing is available per year, and the y-axis showing how frequently listings are available for that many days. Two peaks are particularly noteworthy: one at the extreme left, suggesting a significant number of listings are rarely available, and a second peak towards the extreme right, indicating many listings are available most of the year. The histogram implies a bimodal distribution where listings are either frequently available or scarcely available, with fewer listings in the moderate availability range.
+
+```{r}
+#Geographical Distribution of Prices
+#Scatter plot showing how prices vary across different geographical locations in New York City:
+ggplot(ab_nyc_final, aes(x = longitude, y = latitude, color = price)) +
+  geom_point(alpha = 0.6) +
+  scale_color_gradient(low = "yellow", high = "red") +
+  labs(title = "Geographical Distribution of Prices",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_minimal()
+
+```
+The scatter plot maps the geographical distribution of Airbnb prices across New York City. The plot's x-axis represents longitude and the y-axis latitude, placing listings on the map according to their geographical location. Different colors indicate the price range of listings, with lighter colors representing lower prices and darker colors indicating higher prices. The visualization suggests higher-priced listings are concentrated in specific areas, likely correlating with more affluent or tourist-heavy neighborhoods. Areas with a high density of dark-colored points might indicate popular regions with a variety of high-priced accommodation options.
+
+```{r}
+#Room Type Popularity
+#A bar plot to show the frequency of each room type
+ggplot(ab_nyc_final, aes(x = room_type)) +
+  geom_bar(fill = "pink", alpha = 0.7) +
+  labs(title = "Popularity of Room Types",
+       x = "Room Type",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+The bar chart displays the frequency of different types of Airbnb room offerings, with 'Entire home/apt' being the most common, followed by 'Private room', and 'Shared room' being the least common. The height of each bar reflects the count of listings available for each room type. This visual representation makes it immediately clear which room type is the most and least prevalent on Airbnb in the given dataset, with entire homes/apartments dominating the market.
+```{r}
+# REGRESSION MODELS
+
+# Perform log10 transformation on the price to normalize it
+ab_nyc_final$log_price <- log10(ab_nyc_final$price)
+```
+
+```{r}
+# Simple Linear Regression with 'number_of_reviews' as the predictor
+simple_model <- lm(log_price ~ number_of_reviews, data = ab_nyc_final)
+summary(simple_model)
+```
+
+```{r}
+# Simple Linear Regression Prediction
+simple_model_predictions <- predict(simple_model, newdata = ab_nyc_final)
+# Add predictions to the original data frame
+ab_nyc_final$simple_model_pred <- simple_model_predictions
+# Create a data frame with actual and predicted values for simple linear regression
+simple_comparison <- ab_nyc_final %>%
+  select(actual_log_price = log_price, predicted_log_price = simple_model_pred)
+
+# Print the first few rows of the comparison
+print("Simple Linear Regression: Actual vs. Predicted")
+print(head(simple_comparison))
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(simple_model)
+```
+
+```{r}
+# Ensure that categorical variables are converted to factors
+ab_nyc_final$neighbourhood_group <- as.factor(ab_nyc_final$neighbourhood_group)
+ab_nyc_final$room_type <- as.factor(ab_nyc_final$room_type)
+
+# Multiple Linear Regression with all predictors
+multiple_model <- lm(log_price ~ number_of_reviews + neighbourhood_group + room_type + 
+                       latitude + longitude + minimum_nights_group + 
+                       availability_365, data = ab_nyc_final)
+summary(multiple_model)
+```
+
+```{r}
+# Multiple Linear Regression Prediction
+multiple_model_predictions <- predict(multiple_model, newdata = ab_nyc_final)
+# Add predictions to the original data frame
+ab_nyc_final$multiple_model_pred <- multiple_model_predictions
+# Create a data frame with actual and predicted values for multiple linear regression
+multiple_comparison <- ab_nyc_final %>%
+  select(actual_log_price = log_price, predicted_log_price = multiple_model_pred)
+
+# Print the first few rows of the comparison
+print("Multiple Linear Regression: Actual vs. Predicted")
+print(head(multiple_comparison))
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(multiple_model)
+```
+
+R-squared: Indicates the proportion of the variance in the dependent variable that is predictable from the independent variables. Higher values generally mean a better fit.
+Residual Standard Error (RSE): Measures the average amount that the response will deviate from the true regression line. Lower values indicate a better fit.
+Root Mean Squared Error (RMSE): Indicates the absolute fit of the model to the data. It’s the square root of the mean of the square of all of the error. RMSE is a good measure of accuracy, but only to compare prediction errors of different models or model configurations for a particular variable and not between variables, as it is scale-dependent.
+
+```{r}
+# Assuming 'simple_model' and 'multiple_model' are already fitted lm objects
+
+# R-squared values
+simple_r_squared <- summary(simple_model)$r.squared
+multiple_r_squared <- summary(multiple_model)$r.squared
+cat("Simple Model R-squared:", simple_r_squared, "\n")
+cat("Multiple Model R-squared:", multiple_r_squared, "\n\n")
+
+# Residual Standard Error
+simple_rse <- summary(simple_model)$sigma
+multiple_rse <- summary(multiple_model)$sigma
+cat("Simple Model Residual Standard Error:", simple_rse, "\n")
+cat("Multiple Model Residual Standard Error:", multiple_rse, "\n\n")
+
+# Predicted values
+simple_predictions <- predict(simple_model, newdata = ab_nyc_final)
+multiple_predictions <- predict(multiple_model, newdata = ab_nyc_final)
+
+# Actual log prices
+actual_log_prices <- ab_nyc_final$log_price
+
+# Calculate RMSE
+simple_rmse <- sqrt(mean((actual_log_prices - simple_predictions) ^ 2))
+multiple_rmse <- sqrt(mean((actual_log_prices - multiple_predictions) ^ 2))
+cat("Simple Model RMSE:", simple_rmse, "\n")
+cat("Multiple Model RMSE:", multiple_rmse, "\n\n")
+
+
+```
+
+```{r}
+
+# Model comparison plots with model line
+plot(actual_log_prices, simple_predictions, xlab = "Actual log price", ylab = "Predicted log price", main = "Model Comparison", col = "black", pch = 16)
+points(actual_log_prices, multiple_predictions, col = "red", pch = 16)
+legend("topright", legend = c("Simple", "Multiple"), col = c("black", "red"), pch = 16)
+
+# Add diagonal line representing perfect predictions
+abline(0, 1, col = "blue")  # Intercepts at 0 and slope 1
+
+
+```
+
